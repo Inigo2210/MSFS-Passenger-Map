@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MSFS Passenger Map</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MSFS Map">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+<link rel="apple-touch-icon" href="/static/img/icon-512.png">
+  <link rel="icon" type="image/png" href="/static/img/favicon.png">
+
+
+  <link rel="manifest" href="/static/manifest.json">
+
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet.geodesic"></script>
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: auto;
+  height: 100%;
+  max-height: 100dvh;
+  touch-action: none;
+}
+.ui-button {
+  transition: opacity 0.5s ease-in-out;
+  opacity: 1;
+}
+
+.ui-hidden {
+  opacity: 0 !important;
+  pointer-events: none;  /* Optional: makes them untouchable while hidden */
+}
+
+#settingsContainer {
+  position: absolute;
+  top: 0px;
+  left: 230px;
+  z-index: 10000;
+}
+
+#settingsBtn {
+  background-color: #333;
+  color: white;
+  font-size: 18px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+#toggleUIBtn {
+  transition: opacity 0.3s ease-in-out;
+  opacity: 1;
+}
+
+#toggleUIBtn.dimmed {
+  opacity: 0.6;
+}
+
+#settingsMenu {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-100%, -50%); /* slightly more to the left */
+  background-color: white;
+  color: black;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 16px 20px;
+  font-family: sans-serif;
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  width: 420px;
+  max-width: 95vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  z-index: 10001;
+}
+
+#settingsMenu ul {
+  list-style: none;
+  margin: 6px 0 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 20px;
+  row-gap: 10px;
+}
+
+
+#settingsMenu li {
+  margin-top: 4px;
+  break-inside: avoid; /* prevents splitting items between columns */
+}
+
+.settings-button {
+  width: 100%;
+  margin-top: 4px;
+  padding: 4px 7px;
+  font-size: 12px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.2;
+}
+.leaflet-popup.aircraft-hover-popup {
+  background-color: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  padding: 4px 6px !important;
+  margin: 0 !important;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.25);
+  font-family: 'Segoe UI', sans-serif;
+  line-height: 1.3;
+  max-width: 200px;
+}
+
+.leaflet-popup.aircraft-hover-popup .leaflet-popup-content-wrapper {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.leaflet-popup.aircraft-hover-popup .leaflet-popup-content {
+  margin: 0 !important;
+  padding: 4px 6px !important;
+}
+
+.leaflet-popup.aircraft-hover-popup .leaflet-popup-tip {
+  width: 10px;
+  height: 5px;
+}
+
+.clear-simbrief {
+  background-color: #a52828;
+  color: white;
+}
+
+.recover-trail {
+  background-color: #2a6cad;
+  color: white;
+}
+
+.delete-trail {
+  background-color: #444;
+  color: white;
+}
+.color-option {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #ccc;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.color-option:hover {
+  transform: scale(1.15);
+  border-color: #999;
+}
+
+.color-option.selected {
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px #0078ff; /* blue highlight outline */
+  transform: scale(1.15);
+}
+
+
+</style>
+
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { height: 100vh; width: 100vw; }
+    </style>
+ <style>
+.plane-img {
+    transition: transform 0.4s linear;
+    pointer-events: none;
+}
+
+</style>
+    <style>
+    .city-label {
+        font-family: 'Segoe UI', sans-serif;
+        font-weight: bold;
+        color: #0040ff;
+        background-color: #ffffff; /* Solid white background */
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid #999;
+        box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        white-space: nowrap;
+        pointer-events: none;
+        display: inline-block;
+    }
+    #info-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.75);
+  color: #ffffff;
+  font-family: sans-serif;
+  font-size: 14px;
+  padding: 8px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  z-index: 1000;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.4);
+}
+
+#info-bar div {
+  margin: 4px 10px;
+  white-space: nowrap;
+}
+
+</style>
+
+
+</head>
+<body>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script src="{{ url_for('static', filename='js/translations.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+<script src="{{ url_for('static', filename='js/aircraftHover.js') }}"></script>
+
+
+
+<div id="routeModal" style="
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+">
+  <div style="
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    width: 600px;
+    max-width: 95vw;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    font-family: sans-serif;
+  ">
+    <div style="display: flex; border-bottom: 2px solid #ccc; margin-bottom: 20px;">
+      <button onclick="showTab('manualTab')" id="manualTabBtn" style="flex: 1; padding: 10px; font-weight: bold; border: none; background: #f0f0f0; cursor: pointer;"><span id="lbl-manualTab">Manual Route</span></button>
+      <button onclick="showTab('simbriefTab')" id="simbriefTabBtn" style="flex: 1; padding: 10px; font-weight: bold; border: none; background: #e0e0e0; cursor: pointer;"><span id="lbl-simbriefTab">SimBrief Plan</span></button>
+      <button onclick="showTab('msfsTab')" id="msfsTabBtn" style="flex: 1; padding: 10px; font-weight: bold; border: none; background: #e0e0e0; cursor: pointer;"><span id="lbl-msfsTab">MSFS Flight Plan</span></button>
+    </div>
+
+<div id="manualTab">
+  <p style="font-size: 14px; color: #444; margin-bottom: 16px;">
+    Enter the origin and destination ICAO codes to manually define your flight route and draw a simple great circle arc line.
+    You can also choose how airport labels are displayed on the map.
+  </p>
+
+  <input type="text" id="originInput" placeholder="Origin ICAO (e.g. KJFK)" style="width: 100%; padding: 8px; margin-bottom: 12px; font-size: 16px;"><br>
+  <input type="text" id="destInput" placeholder="Destination ICAO (e.g. RJTT)" style="width: 100%; padding: 8px; margin-bottom: 12px; font-size: 16px;"><br>
+
+  <div style="margin-bottom: 12px; text-align: left; font-size: 14px;">
+    <strong id="lbl-routeModalLabelType-manual">Label Type:</strong><br>
+    <label><input type="radio" name="labelTypeManual" value="city" checked> <span id="lbl-routeModalCity-manual">City (default)</span></label><br>
+    <label><input type="radio" name="labelTypeManual" value="icao"> <span id="lbl-routeModalICAO-manual">ICAO</span></label><br>
+    <label><input type="radio" name="labelTypeManual" value="iata"> <span id="lbl-routeModalIATA-manual">IATA (will default to city for airports w/o IATA code)</span></label><br>
+    <label><input type="radio" name="labelTypeManual" value="name"> <span id="lbl-routeModalName-manual">Airport Name</span></label>
+  </div>
+
+  <div style="display: flex; gap: 10px;">
+    <button onclick="submitRoute()" style="background-color: #0040ff; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 6px; cursor: pointer;">Submit</button>
+    <button onclick="hideRouteModal()" style="background-color: #aaa; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 6px; cursor: pointer;">Dismiss</button>
+  </div>
+</div>
+
+
+
+    <div id="simbriefTab" style="display: none; text-align: center;">
+      <button onclick="loadSimBrief(); importSimbriefToInfoPanel()" style="
+          background-color: #333;
+          color: white;
+          border: none;
+          padding: 12px 24px;
+          font-size: 16px;
+          border-radius: 6px;
+          cursor: pointer;
+          margin-bottom: 15px;
+      ">Load SimBrief Plan</button>
+      <p style="font-size: 14px; color: #444;">
+        This is an <strong>experimental</strong> feature that loads your full SimBrief route with proper waypoints.<br>
+        A simple great circle route and SimBrief route cannot be used at the same time. <br> Refresh the page and ensure the map is clear of markers prior to loading a SimBrief plan
+      </p>
+<div style="margin-top: 20px; text-align: left; font-size: 14px;">
+  <strong id="lbl-routeModalLabelType-simbrief">Label Type:</strong><br>
+  <label><input type="radio" name="labelTypeSimbrief" value="city" checked> <span id="lbl-routeModalCity-simbrief">City (default)</span></label><br>
+  <label><input type="radio" name="labelTypeSimbrief" value="icao"> <span id="lbl-routeModalICAO-simbrief">ICAO</span></label><br>
+  <label><input type="radio" name="labelTypeSimbrief" value="iata"> <span id="lbl-routeModalIATA-simbrief">IATA (will default to city for airports w/o IATA code)</span></label><br>
+  <label><input type="radio" name="labelTypeSimbrief" value="name"> <span id="lbl-routeModalName-simbrief">Airport Name</span></label>
+</div>
+
+      <button onclick="hideRouteModal()" style="background-color: #aaa; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 6px; cursor: pointer;">Dismiss</button>
+    </div>
+    <div id="msfsTab" style="display: none;">
+      <p style="font-size: 14px; color: #444; margin-bottom: 16px;">
+        <span id="lbl-msfsModalDesc">Loads your active MSFS custom flight plan directly from the sim. Set your flight plan in-game first, then click Load below.</span>
+      </p>
+
+      <div style="margin-bottom: 16px; font-size: 14px;">
+        <strong id="lbl-msfsVersionTitle">MSFS Version &amp; Platform:</strong><br>
+        <label style="display:block;margin-top:6px;"><input type="radio" name="msfsVariant" value="steam_2020" checked> <span id="lbl-msfsVariantSteam2020">MSFS 2020 — Steam</span></label>
+        <label style="display:block;margin-top:4px;"><input type="radio" name="msfsVariant" value="store_2020"> <span id="lbl-msfsVariantStore2020">MSFS 2020 — Microsoft Store</span></label>
+        <label style="display:block;margin-top:4px;opacity:0.45;cursor:not-allowed;"><input type="radio" name="msfsVariant" value="steam_2024" disabled> <span id="lbl-msfsVariantSteam2024">MSFS 2024 — Steam</span></label>
+        <label style="display:block;margin-top:4px;opacity:0.45;cursor:not-allowed;"><input type="radio" name="msfsVariant" value="store_2024" disabled> <span id="lbl-msfsVariantStore2024">MSFS 2024 — Microsoft Store</span></label>
+
+              <p id="lbl-msfs2024Unsupported" style="font-size:12px;color:#888;margin:0 0 12px 0;">⚠️ MSFS 2024 flight plan imports are not currently supported. Changes to the 2024 PLN file format removed waypoint coordinates, making import not feasible.</p>
+
+        <label id="msfsCustomLabel" style="display:block;margin-top:4px;opacity:0.45;cursor:not-allowed;" title="Set msfs_custom_pln_path in advanced_config.txt to enable this option">
+          <input type="radio" name="msfsVariant" value="custom" id="msfsCustomRadio" disabled> <span id="lbl-msfsVariantCustom">Custom Directory</span>
+        </label>
+      </div>
+      <div style="margin-bottom: 16px; font-size: 14px;">
+        <strong id="lbl-routeModalLabelType-msfs">Label Type:</strong><br>
+        <label><input type="radio" name="labelTypeMSFS" value="city" checked> <span id="lbl-routeModalCity-msfs">City (default)</span></label><br>
+        <label><input type="radio" name="labelTypeMSFS" value="icao"> <span id="lbl-routeModalICAO-msfs">ICAO</span></label><br>
+        <label><input type="radio" name="labelTypeMSFS" value="iata"> <span id="lbl-routeModalIATA-msfs">IATA (will default to city if unavailable)</span></label><br>
+        <label><input type="radio" name="labelTypeMSFS" value="name"> <span id="lbl-routeModalName-msfs">Airport Name</span></label>
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <button id="lbl-msfsLoadBtn" onclick="loadMSFSPlan()" style="background-color: #1a6b1a; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 6px; cursor: pointer;">Load MSFS Plan</button>
+        <button onclick="hideRouteModal()" style="background-color: #aaa; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 6px; cursor: pointer;">Dismiss</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+<div style="position: absolute; top: 10px; left: 70px; display: flex; gap: 10px; z-index: 9999;">
+<button id="reloadBtn" class="ui-button" onclick="clearRouteAndMapState();" title="Reloads the map and resets the session. Useful if things are stuck or if starting a new flight. Path data will be lost." style="
+      padding: 10px 10px;
+      background-color: #888;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      cursor: pointer;
+      max-width: 133px;
+  font-size: clamp(2px, 2vw, 14px);
+  overflow: hidden;
+  white-space: nowrap;
+  ">
+    Reset
+  </button>
+
+  <button id="setRouteBtn" class="ui-button" onclick="showRouteModal()" title="Set or change the flight route" style="
+      padding: 10px 10px;
+      background-color: #0040ff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      cursor: pointer;
+      max-width: 181px;
+  font-size: clamp(2px, 2vw, 16px);
+  overflow: hidden;
+  white-space: nowrap;
+  ">
+    Set/Change Route
+  </button>
+<button id="trimWaypointBtn" class="ui-button"
+        onclick="manuallyTrimWaypoint()"
+        title="Removes the next SimBrief waypoint. Use if a dotted line points to a waypoint you've already passed"
+        style="display: none; margin-left: 0px; padding: 8px 12px; background-color: darkred; color: white; border: none; border-radius: 6px; cursor: pointer; max-width: 160px;
+  font-size: clamp(2px, 2vw, 12px);
+  overflow: hidden;
+  white-space: nowrap;">
+  Trim Waypoint
+</button>
+
+<button id="globeViewBtn" class="ui-button" onclick="confirmMapSwitch('/globe')"
+        title="Switch to 3D globe view"
+        style="padding: 10px; background-color: #333; color: white; border: none;
+               border-radius: 6px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+               cursor: pointer; font-size: 14px; white-space: nowrap;">
+  3D View 🌍
+</button>
+
+<div id="mapSwitchModal" style="
+  display:none; position:fixed; top:0; left:0; width:100vw; height:100vh;
+  background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:99999;">
+  <div style="
+    background:#fff; border-radius:10px; padding:24px; width:380px; max-width:92vw;
+    font-family:sans-serif; box-shadow:0 6px 24px rgba(0,0,0,0.4);">
+    <h3 id="switchWarningTitle" style="margin:0 0 12px; font-size:16px; color:#c0392b;">⚠️ Switching Views</h3>
+    <p id="switchWarningBody" style="margin:0 0 16px; font-size:14px; color:#333; line-height:1.5;">
+      Switching to the other map view will <strong>reset everything</strong> — your current route,
+      flight trail, and all progress will be lost. You will need to reload your route in the new view.
+    </p>
+    <p id="performanceWarning" style="margin:0 0 16px; font-size:14px; color:#333; line-height:1.5;">
+        If you are switching to the 3D globe, please note that it uses more system resources than the 2D map. You may see lagging or slower responses.
+        Additionally, using the globe map may take system resources away from your PC therefore impacting MSFS performance, and on mobile devices the battery may discharge faster than normal.
+    </p>
+    <label id="switchWarningCheckLabel" style="display:flex; align-items:center; gap:8px; font-size:13px; color:#555; margin-bottom:18px; cursor:pointer;">
+      <input type="checkbox" id="mapSwitchDontShow"> <span id="switchWarningDontShowText">Don't show this warning again</span>
+    </label>
+    <div style="display:flex; justify-content:flex-end; gap:10px;">
+      <button id="switchWarningCancelBtn" onclick="closeSwitchModal()" style="
+        padding:8px 16px; border:none; border-radius:6px; background:#ccc;
+        color:#333; font-size:14px; cursor:pointer;">Cancel</button>
+      <button id="mapSwitchConfirmBtn" style="
+        padding:8px 16px; border:none; border-radius:6px; background:#c0392b;
+        color:#fff; font-size:14px; cursor:pointer;">Switch View</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function confirmMapSwitch(url) {
+    if (localStorage.getItem('skipMapSwitchWarning') === 'true') {
+      window.location.href = url;
+      return;
+    }
+    const modal = document.getElementById('mapSwitchModal');
+    const confirmBtn = document.getElementById('mapSwitchConfirmBtn');
+    modal.style.display = 'flex';
+    confirmBtn.onclick = () => {
+      if (document.getElementById('mapSwitchDontShow').checked) {
+        localStorage.setItem('skipMapSwitchWarning', 'true');
+      }
+      window.location.href = url;
+    };
+  }
+  function closeSwitchModal() {
+    document.getElementById('mapSwitchModal').style.display = 'none';
+  }
+</script>
+
+<div style="position: absolute; top: 0px; right: -100px; display: flex; gap: 8px; z-index: 10000;">
+  <button id="infoToggleBtn" class="ui-button"
+          onclick="toggleInfoPanel()"
+          title="Toggle flight route summary panel"
+          style="padding: 10px; background-color: #333; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px;">
+    ℹ️
+  </button>
+  <button id="settingsBtn" class="ui-button"
+          title="Settings"
+          style="padding: 10px; background-color: #333; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px;">
+    ⚙️
+  </button>
+</div>
+
+ <div id="settingsMenu">
+  <p id="settings_title" style="margin: 0; font-weight: bold;">SETTINGS</p>
+  <ul style="list-style: none; margin: 6px 0 0 0; padding: 0;">
+    <li>
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+        <input type="checkbox" title="Keeps map centered on aircraft as it moves" id="followToggle" onchange="toggleFollowPlane()" />
+        <span id="follow_aircraft_label">Follow Aircraft</span>
+      </label>
+    </li>
+    <!-- <li>
+  <label id="followDelayLabel" for="followDelaySelect" style="font-weight: bold;">Follow Recenter Delay</label><br>
+  <select id="followDelaySelect" onchange="updateFollowDelay()" style="width: 100%; margin-top: 4px;">
+    <option value="100">0s </option>
+    <option value="3000">3s </option>
+    <option value="5000">5s </option>
+    <option value="8000">8s </option>
+    <option value="10000">10s </option>
+    <option value="15000">15s </option>
+    <option value="30000">30s </option>
+  </select>
+</li>
+-->
+    <li>
+  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+    <input type="checkbox" title="Cycles through different zoom levels automatically" id="cycleZoomToggle" onchange="toggleCycleZoom()" />
+    <span id="auto_cycle_zoom_label">Auto Cycle Zoom</span>
+  </label>
+  <label style="display:flex;align-items:center;gap:8px;margin-top:4px;margin-left:22px;cursor:pointer;">
+    <input type="checkbox" id="cycleZoomAirborneOnly" onchange="toggleCycleZoomAirborneOnly()" disabled title="Only cycle zoom levels when airborne" />
+    <span id="lbl-cycleZoomAirborneOnly" style="font-size:12px;color:#555;">Only when airborne</span>
+  </label>
+</li>
+<li>
+  <label id="zoom_speed_label" for="zoomSpeedSelect" style="font-weight: bold;">Zoom Cycle Speed</label><br>
+  <select id="zoomSpeedSelect" onchange="updateZoomSpeed()" title="Determines the time interval between auto zooms" style="width: 100%; margin-top: 4px;" disabled>
+    <option value="fast">Fast (5s)</option>
+    <option value="normal" selected>Normal (15s)</option>
+    <option value="slow">Slow (30s)</option>
+  </select>
+  <br>
+  <br>
+  <label id="followDelayLabel" for="followDelaySelect" style="font-weight: bold;">Follow Recenter Delay</label><br>
+  <select id="followDelaySelect" onchange="updateFollowDelay()" title="Time delay before map recenters to aircraft after panning" style="width: 100%; margin-top: 4px;">
+    <option value="100">0s </option>
+    <option value="3000">3s </option>
+    <option value="5000">5s </option>
+    <option value="8000">8s </option>
+    <option value="10000">10s </option>
+    <option value="15000">15s </option>
+    <option value="30000">30s </option>
+  </select>
+</li>
+    <li style="margin-top: 10px;">
+  <label id="unit_system_label" for="unitSystemSelect" style="font-weight: bold;">Unit System</label><br>
+  <select id="unitSystemSelect" onchange="updateUnitSystem()" style="width: 100%; margin-top: 4px;">
+    <option value="auto">Auto Cycle</option>
+    <option value="imperial">Imperial</option>
+    <option value="metric">Metric</option>
+    <option value="aviation">Aviation</option>
+  </select>
+</li>
+
+<li style="margin-top: 10px;">
+  <label id="trail_color_label" style="font-weight: bold;">Aircraft Trail Color</label><br>
+  <input type="color" id="trailColorPicker" value="#ff0000" onchange="updateColorSettings()" />
+</li>
+<li style="margin-top: 10px;">
+  <label id="route_color_label" style="font-weight: bold;">Route Line Color</label><br>
+  <input type="color" id="routeColorPicker" value="#ff0000" onchange="updateColorSettings()" />
+</li>
+    <li style="margin-top: 10px;">
+  <label id="thickness_label" for="lineThicknessRange" style="font-weight: bold;">Line Thickness</label><br>
+  <input type="range" id="lineThicknessRange" min="1" max="10" value="3" oninput="updateLineThickness()" />
+</li>
+    <li style="margin-top: 10px;">
+  <label id="airport_label_label" for="labelTypeSelect" style="font-weight: bold;">Airport Label Type</label><br>
+  <select id="labelTypeSelect" onchange="updateLabelType()" style="width: 100%; margin-top: 4px;">
+    <option value="city">City</option>
+    <option value="icao">ICAO</option>
+    <option value="iata">IATA</option>
+    <option value="name">Airport Name</option>
+  </select>
+</li>
+
+<li style="margin-top: 10px;">
+  <label id="aircraft_icon_label" for="iconSelect" style="font-weight: bold;">Aircraft Icon</label><br>
+  <select id="iconSelect" onchange="updateAircraftIcon()" style="width: 100%; margin-top: 4px;">
+    <option value="plane_icon.png">Default Airliner</option>
+    <option value="jumbo_icon.png">Jumbo Jet</option>
+    <option value="jet_icon.png">Regional Jet</option>
+    <option value="military_icon.png">Military</option>
+    <option value="ga_icon.png">General Aviation</option>
+    <option value="heli_icon.png">Helicopter</option>
+  </select>
+  <br>
+  <br>
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+    <input type="checkbox" id="infoBarToggle" onchange="toggleInfoBar()">
+    <span id="infoBarLabel"></span>
+  </label>
+</li>
+    <li style="margin-top: 10px;">
+ <label id="iconColorLabel" style="font-weight: bold;"></label><br>
+  <div id="iconColorContainer" style="display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap;"></div>
+</li>
+
+    <li>
+  <label id="infoBarFontLabel" style="font-weight: bold;" for="infoBarFontRange"></label>
+  <input type="range" id="infoBarFontRange" min="10" max="32" step="1" oninput="updateInfoBarFont()"> <br>
+    <label id="cityLabelScaleLabel" data-i18n="cityLabelScaleLabel" for="cityLabelScaleRange" style="font-weight: bold;"></label><br>
+  <input type="range" id="cityLabelScaleRange" min="0.5" max="2.0" step="0.1" style="width: 100%;" oninput="updateCityLabelScale()">
+</li>
+    <li>
+  <label for="etaModeSelect" style="font-weight: bold;" id="etaModeLabel"></label>
+  <select id="etaModeSelect" onchange="updateEtaMode()">
+    <option value="dest">Destination Time</option>
+    <option value="local">Local PC Time</option>
+  </select>
+</li>
+<li>
+  <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+    <input type="checkbox" id="dayNightToggle" onchange="toggleDayNight()">
+    <span id="dayNightLabel"></span>
+  </label>
+</li>
+
+    <li style="margin-top: -10px;">
+  <label id="language_label" for="languageSelect" style="font-weight: bold;">Language</label><br>
+<select id="languageSelect" onchange="changeLanguage(this.value)">
+  <option value="en">English</option>
+  <option value="de">Deutsch</option>
+  <option value="fr">Français</option>
+  <option value="es">Español</option>
+  <option value="pt">Português</option>
+  <option value="it">Italiano</option>
+  <option value="ru">Русский</option> <!-- Russian -->
+  <option value="ja">日本語</option> <!-- Japanese -->
+  <option value="ko">한국어</option> <!-- Korean -->
+  <option value="zh">简体中文</option> <!-- Chinese -->
+  <option value="zh-TW">繁體中文</option> <!-- Taiwanese -->
+  <option value="zhHK">粵語</option>       <!-- Cantonese -->
+  <option value="pl">Polski</option>     <!-- Polish -->
+  <option value="uk">Українська</option> <!-- Ukrainian -->
+  <option value="nl">Nederlands</option> <!-- Dutch -->
+  <option value="sv">Svenska</option> <!-- Swedish -->
+  <option value="no">Norsk</option> <!-- Norwegian -->
+  <option value="da">Dansk</option>  <!-- Danish -->
+  <option value="fi">Suomi</option>  <!-- Finnish -->
+  <option value="cs">Čeština</option> <!-- Czech -->
+  <option value="hu">Magyar</option>  <!-- Hungarian -->
+  <option value="ro">Română</option>  <!-- Romanian -->
+  <option value="sr">Српски</option>  <!-- Serbian -->
+  <option value="tr">Türkçe</option>  <!-- Turkish -->
+  <option value="ka">ქართული</option>     <!-- Georgian -->
+  <option value="el">Ελληνικά</option>   <!-- Greek -->
+  <option value="he">עברית</option>    <!-- Hebrew -->
+  <option value="ar">العربية</option>  <!-- Arabic -->
+  <option value="th">ไทย</option>         <!-- Thai -->
+  <option value="vi">Tiếng Việt</option>  <!-- Vietnamese -->
+  <option value="bn">বাংলা</option>       <!-- Bengali -->
+  <option value="hi">हिन्दी</option>     <!-- Hindi -->
+  <option value="tl">Tagalog</option>
+  <option value="id">Bahasa Indonesia</option>
+  <option value="ms">Bahasa Melayu</option>
+</select>
+</li>
+<!--
+    <li>
+      <label>
+  <input type="checkbox" id="trailSaveToggle" onchange="toggleTrailSaving()">
+  Enable Auto-Save Trail
+</label>
+    </li>
+<li>
+  <button id="recoverTrailBtn" onclick="recoverSavedTrail()" class="settings-button recover-trail">
+    Recover Previous Flight Trail
+  </button>
+</li>
+
+<li>
+  <button onclick="deleteSavedTrail()" class="settings-button delete-trail">
+    Delete Saved Trail
+  </button>
+</li>
+    -->
+  <!--      <li style="margin-top: 0px;">
+  <button id="simbrief_clear_label" title="Clears SimBrief Username from browser cookies" onclick="clearSimBriefUsername()" class="settings-button clear-simbrief">
+    Clear SimBrief Username Cache
+  </button>
+</li>
+-->
+<li style="margin-top: 0px;">
+  <label id="simbriefuserlabel" for="simbriefInput" style="font-weight: bold; font-size: 10pt; display: block; margin-bottom: 4px;"> <b> SimBrief Username:</b> </label>
+  <div style="display: flex; gap: 6px;">
+    <input
+  type="text"
+  id="simbriefInput"
+  placeholder="Enter here"
+  data-i18n-placeholder="simbriefPlaceholder"
+  style="
+  width: 100px;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+    " />
+    <button id="setSimbriefBtn" style="
+      padding: 4px 8px;
+      font-size: 13px;
+      border: none;
+      background: #007acc;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+    ">Set</button>
+  </div>
+</li>
+
+
+<li style="margin-top: 10px;">
+  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+    <input type="checkbox" id="autoStealthModeToggle" title="Automatically import and load SimBrief plan on all future startups of app" onchange="toggleAutoSimbrief()" />
+    <span id="autoSimBriefSpan">Auto-load SimBrief on Startup</span>
+      </label> <br>
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+    <input type="checkbox" id="debugToggle" onchange="toggleDebugPanel()" />
+    <span id="debug_label" >Show Debug Info</span>
+  </label>
+</li>
+
+
+
+  </ul>
+</div>
+
+</div>
+
+
+</div>
+<div id="infoPanel" style="
+  display: none;
+  position: absolute;
+  top: 70px;
+  right: 30px;
+  left: auto;
+  width: 300px;
+  z-index: 1000;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+  overflow: hidden;
+  max-height: 90vh;
+  background-color: #ffffff;
+color: #333;
+font-family: 'Segoe UI', Roboto, sans-serif;
+font-size: 14px;
+border: 1px solid #ccc;
+">
+
+
+<div id="infoPanelHeader"
+     style="cursor: move; background-color: #ddd; color: #555; padding: 6px 10px; font-size: 12px; border-top-left-radius: 10px; border-top-right-radius: 10px;">
+  Drag to move
+</div>
+
+<div style="padding: 12px 16px 0 16px;">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h3 id="flight_summary_title" style="margin: 0; font-size: 16px; font-weight: 600; color: #333;">Flight Summary</h3>
+    <div>
+      <button id="importSimbriefBtn" onclick="importSimbriefToInfoPanel()"
+              title="Import from SimBrief"
+              style="background-color: #e0e0e0; color: black; border: none; padding: 4px 8px; font-size: 13px; border-radius: 6px; cursor: pointer;">
+        ⬇️
+      </button>
+      <button id="closeInfoPanelBtn" onclick="toggleInfoPanel()"
+              title="Close"
+              style="background-color: #e0e0e0; color: black; border: none; padding: 4px 8px; font-size: 13px; border-radius: 6px; cursor: pointer; margin-left: 6px;">
+        ❌
+      </button>
+    </div>
+  </div>
+
+
+
+<div id="infoPanelContent" style="padding: 0 5px 5px 5px;">
+
+</div>
+
+  </div>
+</div>
+
+
+
+<div id="info-bar">
+  <div><strong>Altitude:</strong> <span id="altitude">--</span></div>
+  <div><strong>Ground Speed:</strong> <span id="groundSpeed">--</span></div>
+  <div><strong>Time at Origin:</strong> <span id="timeOrigin">--:--</span></div>
+  <div><strong>Time at Destination:</strong> <span id="timeDestination">--:--</span></div>
+  <div><strong>Distance from Origin:</strong> <span id="distanceFromOrigin">--</span></div>
+  <div><strong>Distance to Destination:</strong> <span id="distanceToDest">--</span></div>
+  <div><strong id="lbl-timeElapsed">Time Elapsed:</strong> <span id="timeElapsed">--:--</span></div>
+  <div><strong>Time Remaining:</strong> <span id="timeRemaining">--:--</span></div>
+  <div><strong id="infoETA"></strong> <span id="eta">--:--</span></div>
+</div>
+<div id="debugBox" style="
+  display: none;
+  position: fixed;
+  bottom: 110px;
+  right: 10px;
+  background: rgba(0,0,0,0.85);
+  color: white;
+  font-family: monospace;
+  font-size: 11px;
+  padding: 2px;
+  border-radius: 6px;
+  z-index: 9999;
+  max-width: 260px;
+  white-space: pre;
+  line-height: 1.2;
+  overflow-y: auto;
+">
+  <div id="debugContent" style="margin: 0; padding: 0;"></div>
+  <button onclick="runTrailStressTest(12, 1000)"
+          style="margin: 2px 0 0 0; background-color: #aa3333; color: white; border: none; padding: 0px 0px; font-size: 10px; border-radius: 3px; cursor: pointer; width: auto;">
+    Stress Test
+  </button>
+</div>
+<button id="toggleUIBtn" title="Show/hide UI buttons" onclick="toggleUIPersistent()" style="
+  position: fixed;
+  top: 80px;
+  left: 10px;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  border: none;
+  padding: 3px 6px;
+  font-size: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: sans-serif;
+  line-height: 1;
+">
+</button>
+<div id="toast" style="
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.85);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  z-index: 9999;
+  display: none;
+  opacity: 0;
+  font-family: sans-serif;
+  transition: opacity 0.4s ease-in-out;
+">
+</div>
+<div id="promptModal" style="
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 100px;
+  z-index: 99999;
+">
+  <div style="
+    background: #1e1e1e;
+    padding: 20px;
+    border-radius: 10px;
+    width: 300px;
+    max-width: 90%;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    font-family: sans-serif;
+    color: #fff;
+    text-align: left;
+  ">
+    <div id="promptMessage" style="margin-bottom: 12px; font-size: 15px; font-weight: bold;"></div>
+    <input type="text" id="promptInput" style="
+      width: 100%;
+      padding: 8px;
+      font-size: 14px;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background: #2c2c2c;
+      color: white;
+      margin-bottom: 16px;
+    " />
+    <div style="text-align: right;">
+      <button id="promptCancel" style="
+        background: transparent;
+        border: none;
+        color: #ccc;
+        font-size: 13px;
+        margin-right: 10px;
+        cursor: pointer;
+      ">Cancel</button>
+      <button id="promptOk" style="
+        background: #007acc;
+        border: none;
+        color: white;
+        padding: 6px 12px;
+        font-size: 13px;
+        border-radius: 4px;
+        cursor: pointer;
+      ">OK</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+  function showTab(tab) {
+    const manualTab   = document.getElementById('manualTab');
+    const simbriefTab = document.getElementById('simbriefTab');
+    const msfsTab     = document.getElementById('msfsTab');
+    const manualBtn   = document.getElementById('manualTabBtn');
+    const simbriefBtn = document.getElementById('simbriefTabBtn');
+    const msfsBtn     = document.getElementById('msfsTabBtn');
+
+    manualTab.style.display   = tab === 'manualTab'   ? 'block' : 'none';
+    simbriefTab.style.display = tab === 'simbriefTab' ? 'block' : 'none';
+    msfsTab.style.display     = tab === 'msfsTab'     ? 'block' : 'none';
+
+    manualBtn.style.background   = tab === 'manualTab'   ? '#f0f0f0' : '#e0e0e0';
+    simbriefBtn.style.background = tab === 'simbriefTab' ? '#f0f0f0' : '#e0e0e0';
+    msfsBtn.style.background     = tab === 'msfsTab'     ? '#f0f0f0' : '#e0e0e0';
+
+    if (tab === 'msfsTab') {
+      const saved = localStorage.getItem('msfsVariant') || 'steam_2020';
+      const radio = document.querySelector('input[name="msfsVariant"][value="' + saved + '"]');
+      if (radio) radio.checked = true;
+    }
+  }
+
+  // Optional: Default to manual tab when modal is shown
+  function showRouteModal() {
+    document.getElementById('routeModal').style.display = 'flex';
+    showTab('manualTab');
+  }
+
+  function hideRouteModal() {
+    document.getElementById('routeModal').style.display = 'none';
+  }
+
+</script>
+<script>
+document.getElementById("settingsBtn").addEventListener("click", () => {
+  const menu = document.getElementById("settingsMenu");
+  menu.style.display = (menu.style.display === "block") ? "none" : "block";
+});
+
+// Optional: close the menu when clicking outside
+document.addEventListener("click", (e) => {
+  const btn = document.getElementById("settingsBtn");
+  const menu = document.getElementById("settingsMenu");
+  if (!btn.contains(e.target) && !menu.contains(e.target)) {
+    menu.style.display = "none";
+  }
+});
+</script>
+<script src="{{ url_for('static', filename='js/flight_info.js') }}"></script>
+
+</body>
+</html>

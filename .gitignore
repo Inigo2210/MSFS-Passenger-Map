@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.env
+venv/
+.venv/
+.idea/
+dist/
+build/
+*.spec
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+advanced_config.txt
+static/img/airline_logos/*
+!static/img/airline_logos/.gitkeep

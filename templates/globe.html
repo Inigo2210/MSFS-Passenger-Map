@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MSFS Passenger Globe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="icon" type="image/png" href="/static/img/favicon.png">
+  <link rel="apple-touch-icon" href="/static/img/icon-512.png">
+  <link rel="manifest" href="/static/manifest.json">
+
+  <!-- CesiumJS -->
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.123/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.123/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+
+  <style>
+    html, body, #cesiumContainer {
+      width: 100%; height: 100%;
+      margin: 0; padding: 0;
+      overflow: hidden;
+      background: #000;
+    }
+
+    .ui-button { transition: opacity 0.3s ease-in-out; opacity: 1; }
+
+    .ui-hidden {
+      opacity: 0 !important;
+      pointer-events: none;
+    }
+
+    /* === Control Buttons === */
+    #controlPanel {
+      position: absolute;
+      top: 10px; left: 70px;
+      display: flex;
+      gap: 10px;
+      z-index: 1000;
+    }
+    #controlPanel button {
+      background-color: #333;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 10px;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      white-space: nowrap;
+    }
+    #controlPanel button:hover { background-color: #444; }
+    #resetBtn        { background-color: #888 !important; font-size: clamp(2px,2vw,14px); }
+    #setRouteBtn     { background-color: #0040ff !important; font-size: clamp(2px,2vw,16px); }
+    #trimWaypointBtn { background-color: darkred !important; font-size: clamp(2px,2vw,12px); }
+
+    /* === Settings button — flex item inside controlPanel === */
+    #settingsContainer {
+      display: flex;
+    }
+    #settingsBtn {
+      background-color: #333;
+      color: white;
+      font-size: 16px;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+    #settingsBtn:hover { background-color: #444; }
+
+    /* === Settings Menu === */
+    #settingsMenu {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-100%, -50%);
+      background-color: white;
+      color: black;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 16px 20px;
+      font-family: sans-serif;
+      font-size: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      width: 480px;
+      max-width: 95vw;
+      max-height: 80vh;
+      overflow-y: auto;
+      z-index: 10001;
+    }
+    #settingsMenu p { margin: 0 0 8px 0; font-weight: bold; }
+    #settingsMenu ul {
+      list-style: none;
+      margin: 6px 0 0 0;
+      padding: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 20px;
+      row-gap: 10px;
+    }
+    #settingsMenu li {
+      margin-top: 4px;
+      break-inside: avoid;
+    }
+    #settingsMenu select,
+    #settingsMenu input[type=text] {
+      width: 100%; margin-top: 4px;
+      padding: 4px 6px;
+      font-size: 13px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    #settingsMenu label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .settings-btn {
+      padding: 4px 8px; font-size: 13px;
+      border: none; border-radius: 4px; cursor: pointer;
+    }
+
+    /* === Info Bar === */
+    #info-bar {
+      position: fixed;
+      bottom: 0; left: 0;
+      width: 100%;
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      font-family: sans-serif;
+      font-size: 14px;
+      padding: 8px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+      z-index: 1000;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.4);
+    }
+    #info-bar div { margin: 4px 10px; white-space: nowrap; }
+
+    #cesiumContainer canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    /* === Route Modal === */
+    #routeModal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+    }
+    #routeModalContent {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      width: 520px;
+      max-width: 90vw;
+      font-family: sans-serif;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    }
+    #routeModalContent input[type=text] {
+      width: 100%; padding: 8px;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+    #routeModalContent button {
+      padding: 8px 16px;
+      border: none; border-radius: 6px;
+      font-size: 14px; cursor: pointer;
+    }
+    #routeModalTabs {
+      display: flex;
+      border-bottom: 2px solid #ccc;
+      margin-bottom: 10px;
+    }
+    #routeModalTabs button { flex: 1; font-weight: bold; background: #e0e0e0; }
+    #manualTab, #simbriefTab, #msfsTab { display: none; }
+
+    /* === Toast === */
+    #toast {
+      position: fixed;
+      top: 20px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.85);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      z-index: 3000;
+      display: none;
+      opacity: 0;
+      transition: opacity 0.4s ease-in-out;
+    }
+    /* === Custom Imagery Picker === */
+    #imageryPickerContainer {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 1001;
+    }
+    #imageryPickerBtn {
+      width: 40px;
+      height: 40px;
+      background: #333;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 18px;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+    }
+    #imageryPickerBtn:hover { background: #444; }
+    #imageryPickerMenu {
+      display: none;
+      position: absolute;
+      top: 0;
+      right: 44px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      min-width: 210px;
+      font-family: sans-serif;
+      font-size: 13px;
+      color: #222;
+    }
+    #imageryPickerMenu p {
+      margin: 0 0 8px 0;
+      font-weight: bold;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #555;
+      letter-spacing: 0.05em;
+    }
+    .imagery-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .imagery-option:hover { background: #f0f0f0; }
+    .imagery-option.disabled {
+      opacity: 0.45;
+      cursor: pointer; /* still clickable to show popup */
+    }
+    .imagery-option.disabled:hover { background: #f8f0f0; }
+    .imagery-option input[type=radio] { cursor: pointer; }
+    .imagery-option.disabled input[type=radio] { pointer-events: none; }
+    .imagery-option span { line-height: 1.3; }
+    .imagery-lock-icon { font-size: 11px; color: #999; }
+  </style>
+
+  <script>
+    // Fetch Cesium token synchronously before anything loads so the token
+    // is available before Cesium initialises and before the redirect decision.
+    window._cesiumTokenData = { token: '', hasPersonalToken: false, allow3DMode: false };
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', '/cesium_token', false); // synchronous
+      xhr.send();
+      if (xhr.status === 200) window._cesiumTokenData = JSON.parse(xhr.responseText);
+    } catch(e) {}
+
+    // Redirect to saved mode. Default is classic on first visit.
+    (function() {
+      const urlMode   = new URLSearchParams(window.location.search).get('mode');
+      const savedMode = localStorage.getItem("globeMode") || "classic";
+
+      // If 3D mode is requested but not allowed by server, force classic
+      if (urlMode !== 'classic' && !window._cesiumTokenData.allow3DMode) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('mode', 'classic');
+        window.location.replace(window.location.pathname + '?' + params.toString());
+        return;
+      }
+
+      if (!urlMode) {
+        if (savedMode === 'classic' || !window._cesiumTokenData.allow3DMode) {
+          const params = new URLSearchParams(window.location.search);
+          params.set('mode', 'classic');
+          window.location.replace(window.location.pathname + '?' + params.toString());
+        }
+      }
+    })();
+  </script>
+</head>
+<body>
+  <div id="cesiumContainer"></div>
+
+  <div id="controlPanel">
+    <button id="resetBtn"        class="ui-button" onclick="GlobeMap.clearAll()">Reset</button>
+    <button id="setRouteBtn"     class="ui-button" onclick="showRouteModal()">Set/Change Route</button>
+    <button id="trimWaypointBtn" class="ui-button" onclick="GlobeMap.manuallyTrimWaypoint()" style="display:none;">Trim Waypoint</button>
+    <button id="twoDMapBtn"      class="ui-button" onclick="confirmMapSwitch('/')">2D View 🗺️</button>
+    <button id="terrainToggleBtn" class="ui-button" onclick="toggleTerrainBtn()"></button>
+    <script>
+      (function() {
+        const isClassic = new URLSearchParams(window.location.search).get('mode') === 'classic';
+        const lang = localStorage.getItem("selectedLanguage") || "en";
+        const t    = (typeof translations !== "undefined" && translations[lang]) || {};
+        const btn  = document.getElementById('terrainToggleBtn');
+        btn.textContent           = isClassic
+          ? (t.flightPath3DOffLabel || '3D Flight Path (beta): OFF')
+          : (t.flightPath3DOnLabel  || '3D Flight Path (beta): ON');
+        btn.style.backgroundColor = isClassic ? '#555' : '#1a6b1a';
+        btn.title                 = isClassic
+          ? (t.flightPath3DOffTooltip || '3D Flight Path mode is OFF. Click to enable — beta feature, may have bugs and impact performance.')
+          : (t.flightPath3DOnTooltip  || '3D Flight Path mode is ON (beta). Click to switch to Classic mode.');
+      })();
+    </script>
+
+    <div id="settingsContainer">
+      <button id="infoToggleBtn" class="ui-button" title="Toggle flight info panel" style="margin-right:4px;">ℹ️</button>
+      <button id="settingsBtn" class="ui-button" title="Settings">⚙️</button>
+    </div>
+  </div>
+
+  <div id="imageryPickerContainer" class="ui-button">
+    <button id="imageryPickerBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="white">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+        <path d="M2 17l10 5 10-5"/>
+        <path d="M2 12l10 5 10-5"/>
+      </svg>
+    </button>
+    <div id="imageryPickerMenu">
+      <p id="lbl-imageryPickerTitle">Map Imagery</p>
+
+      <label class="imagery-option">
+        <input type="radio" name="globeImagery" value="osm" onchange="setGlobeImagery('osm')" />
+        <span id="lbl-imageryOSM">OpenStreetMap</span>
+      </label>
+
+      <label class="imagery-option">
+        <input type="radio" name="globeImagery" value="arcgis" onchange="setGlobeImagery('arcgis')" />
+        <span id="lbl-imageryArcGIS">ArcGIS Satellite</span>
+      </label>
+
+      <label class="imagery-option">
+        <input type="radio" name="globeImagery" value="arcgis_labels" onchange="setGlobeImagery('arcgis_labels')" />
+        <span id="lbl-imageryArcGISLabels">ArcGIS Satellite + Labels</span>
+      </label>
+
+      <!-- <label class="imagery-option" id="imageryOptBing">
+        <input type="radio" name="globeImagery" value="bing" />
+        <span id="lbl-imageryBing">Bing Maps Aerial</span>
+        <span class="imagery-lock-icon" id="imageryBingLock">🔒</span>
+      </label>
+
+      <label class="imagery-option" id="imageryOptBingLabels">
+        <input type="radio" name="globeImagery" value="bing_labels" />
+        <span id="lbl-imageryBingLabels">Bing Maps Aerial + Labels</span>
+        <span class="imagery-lock-icon" id="imageryBingLabelsLock">🔒</span>
+      </label>
+      -->
+    </div>
+  </div>
+
+  <div id="settingsMenu">
+    <p>SETTINGS</p>
+    <ul>
+
+      <li>
+        <label>
+          <input type="checkbox" id="followToggle" onchange="toggleFollowAircraft()" title="Keeps map centered on aircraft as it moves" />
+          <span id="lbl-followAircraft">Follow Aircraft</span>
+        </label>
+      </li>
+
+      <li>
+        <label for="followDelaySelect" id="lbl-followDelay" style="font-weight:bold;display:block;">Follow Recenter Delay</label>
+        <select id="followDelaySelect" onchange="updateFollowDelay()" title="Time delay before map recenters to aircraft after panning" style="width:100%;margin-top:4px;">
+          <option value="0">0s</option>
+          <option value="3000">3s</option>
+          <option value="5000">5s</option>
+          <option value="8000">8s</option>
+          <option value="10000">10s</option>
+          <option value="15000">15s</option>
+          <option value="30000">30s</option>
+        </select>
+      </li>
+
+      <li>
+        <label>
+          <input type="checkbox" id="cycleZoomToggle" onchange="toggleCycleZoom()" title="Automatically cycles through zoom levels" />
+          <span id="lbl-autoCycleZoom">Auto Cycle Zoom</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:4px;margin-left:22px;cursor:pointer;">
+          <input type="checkbox" id="cycleZoomAirborneOnly" onchange="toggleCycleZoomAirborneOnly()" disabled title="Only cycle zoom levels when airborne" />
+          <span id="lbl-cycleZoomAirborneOnly" style="font-size:12px;color:#555;">Only when airborne</span>
+        </label>
+      </li>
+
+      <li>
+        <label for="zoomSpeedSelect" id="lbl-zoomSpeed" style="font-weight:bold;display:block;">Zoom Cycle Speed</label>
+        <select id="zoomSpeedSelect" onchange="updateZoomSpeed()" title="Determines the time interval between auto zooms" style="width:100%;margin-top:4px;" disabled>
+          <option value="fast" id="lbl-zoomFast">Fast (5s)</option>
+          <option value="normal" selected id="lbl-zoomNormal">Normal (15s)</option>
+          <option value="slow" id="lbl-zoomSlow">Slow (30s)</option>
+        </select>
+      </li>
+
+      <li>
+        <label for="unitSystemSelect" id="lbl-unitSystem" style="font-weight:bold;display:block;">Unit System</label>
+        <select id="unitSystemSelect" onchange="updateUnitSystem()">
+          <option value="auto">Auto Cycle</option>
+          <option value="imperial">Imperial</option>
+          <option value="metric">Metric</option>
+          <option value="aviation">Aviation</option>
+        </select>
+      </li>
+
+      <li>
+        <label for="etaModeSelect" id="lbl-etaMode" style="font-weight:bold;display:block;">ETA Mode</label>
+        <select id="etaModeSelect" onchange="updateEtaMode()">
+          <option value="dest">Destination Time</option>
+          <option value="local">Local PC Time</option>
+        </select>
+      </li>
+
+      <li>
+        <label id="lbl-trailColor" style="font-weight:bold;display:block;">Aircraft Trail Color</label>
+        <input type="color" id="trailColorPicker" value="#ff0000" onchange="updateColorSettings()" />
+      </li>
+
+      <li>
+        <label id="lbl-routeColor" style="font-weight:bold;display:block;">Route Line Color</label>
+        <input type="color" id="routeColorPicker" value="#ff0000" onchange="updateColorSettings()" />
+      </li>
+
+      <li>
+        <label for="lineThicknessRange" id="lbl-lineThickness" style="font-weight:bold;display:block;">Line Thickness</label>
+        <input type="range" id="lineThicknessRange" min="1" max="10" value="3" style="width:100%;" oninput="updateLineThickness()" />
+      </li>
+
+      <li>
+        <label for="labelTypeSelect" id="lbl-airportLabelType" style="font-weight:bold;display:block;">Airport Label Type</label>
+        <select id="labelTypeSelect" onchange="updateLabelType()">
+          <option value="city">City</option>
+          <option value="icao">ICAO</option>
+          <option value="iata">IATA</option>
+          <option value="name">Airport Name</option>
+        </select>
+      </li>
+
+      <li>
+        <label for="cityLabelScaleRange" id="lbl-cityLabelScale" style="font-weight:bold;display:block;">Airport Label Size</label>
+        <input type="range" id="cityLabelScaleRange" min="0.5" max="2.0" step="0.1" value="1.0" style="width:100%;" oninput="updateCityLabelScale()" />
+      </li>
+
+      <li>
+        <label for="iconSelect" id="lbl-aircraftIcon" style="font-weight:bold;display:block;">Aircraft Model</label>
+        <select id="iconSelect" onchange="updateAircraftIcon()">
+          <option value="A320">A320</option>
+          <option value="A330">A330</option>
+          <option value="A340">A340</option>
+          <option value="A350">A350</option>
+          <option value="A380">A380</option>
+          <option value="737">737</option>
+          <option value="747">747</option>
+          <option value="757">757</option>
+          <option value="767">767</option>
+          <option value="777">777</option>
+          <option value="787">787</option>
+          <option value="E-Jet">Embraer E-Jet</option>
+          <option value="CRJ">CRJ</option>
+          <option value="ATR">ATR</option>
+          <option value="business_jet">Business Jet</option>
+          <option value="GA">General Aviation</option>
+          <option value="GA_Twin">General Aviation Twin Engine</option>
+          <option value="Helicopter">Helicopter</option>
+          <option value="Military">Military</option>
+        </select>
+      </li>
+
+      <li>
+        <label id="lbl-iconColor" style="font-weight:bold;display:block;">Icon Color</label>
+        <div id="iconColorContainer" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;"></div>
+      </li>
+
+      <li>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="infoBarToggle" onchange="toggleInfoBar()" />
+          <span id="lbl-infoBar">Show Flight Info Bar</span>
+        </label>
+        <label>
+          <br>
+        </label>
+                <label>
+          <input type="checkbox" id="globeLightingToggle" onchange="toggleGlobeLighting()" title="Show realistic day/night lighting based on simulation time" />
+          <span id="dayNightLabel">Day/Night Lighting</span>
+        </label>
+      </li>
+
+      <li>
+        <label for="infoBarFontRange" id="lbl-infoBarFont" style="font-weight:bold;display:block;">Info Bar Font Size</label>
+        <input type="range" id="infoBarFontRange" min="10" max="32" step="1" value="14" style="width:100%;" oninput="updateInfoBarFont()" />
+      </li>
+
+      <li>
+        <label for="simbriefInput" id="lbl-simbriefUsername" style="font-weight:bold;display:block;">SimBrief Username</label>
+        <div style="display:flex;gap:6px;margin-top:4px;">
+          <input type="text" id="simbriefInput" placeholder="Enter username" style="width:140px;" />
+          <button id="setSimbriefBtn" class="settings-btn" onclick="saveSimbriefUsername()" style="background:#007acc;color:white;">Set</button>
+        </div>
+      </li>
+
+      <li>
+        <label>
+          <input type="checkbox" id="autoStealthModeToggle" onchange="toggleAutoSimbrief()" title="Automatically import and load SimBrief plan on all future startups of app" />
+          <span id="lbl-autoSimbrief">Auto-load SimBrief on Startup</span>
+        </label>
+      </li>
+       <li>
+        <button id="resetCameraBtn" onclick="resetCameraView()" style="width:100%;padding:8px;background:#555;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;" title="Resets the camera to a full globe overview if you get lost or stuck">🌐 Reset Map View</button>
+      </li>
+      <li>
+        <label for="languageSelect" id="lbl-language" style="font-weight:bold;display:block;">Language</label>
+        <select id="languageSelect" onchange="changeLanguage(this.value)" style="width:100%;margin-top:4px;">
+          <option value="en">English</option>
+          <option value="de">Deutsch</option>
+          <option value="fr">Français</option>
+          <option value="es">Español</option>
+          <option value="pt">Português</option>
+          <option value="it">Italiano</option>
+          <option value="ru">Русский</option>
+          <option value="ja">日本語</option>
+          <option value="ko">한국어</option>
+          <option value="zh">简体中文</option>
+          <option value="zh-TW">繁體中文</option>
+          <option value="zhHK">粵語</option>
+          <option value="pl">Polski</option>
+          <option value="uk">Українська</option>
+          <option value="nl">Nederlands</option>
+          <option value="sv">Svenska</option>
+          <option value="no">Norsk</option>
+          <option value="da">Dansk</option>
+          <option value="fi">Suomi</option>
+          <option value="cs">Čeština</option>
+          <option value="hu">Magyar</option>
+          <option value="ro">Română</option>
+          <option value="sr">Српски</option>
+          <option value="tr">Türkçe</option>
+          <option value="ka">ქართული</option>
+          <option value="el">Ελληνικά</option>
+          <option value="he">עברית</option>
+          <option value="ar">العربية</option>
+          <option value="th">ไทย</option>
+          <option value="vi">Tiếng Việt</option>
+          <option value="bn">বাংলা</option>
+          <option value="hi">हिन्दी</option>
+          <option value="tl">Tagalog</option>
+          <option value="id">Bahasa Indonesia</option>
+          <option value="ms">Bahasa Melayu</option>
+        </select>
+      </li>
+
+    </ul>
+  </div>
+
+  <div id="info-bar">
+    <div><strong id="lbl-altitude">Altitude:</strong> <span id="altitude">--</span></div>
+    <div><strong id="lbl-groundSpeed">Ground Speed:</strong> <span id="groundSpeed">--</span></div>
+    <div><strong id="lbl-timeOrigin">Time at Origin:</strong> <span id="timeOrigin">--:--</span></div>
+    <div><strong id="lbl-timeDestination">Time at Dest:</strong> <span id="timeDestination">--:--</span></div>
+    <div><strong id="lbl-distanceFromOrigin">Distance From Origin:</strong> <span id="distanceFromOrigin">--</span></div>
+    <div><strong id="lbl-distanceToDest">Distance To Dest:</strong> <span id="distanceToDest">--</span></div>
+    <div><strong id="lbl-timeElapsed">Time Elapsed:</strong> <span id="timeElapsed">--:--</span></div>
+    <div><strong id="lbl-timeRemaining">Time Remaining:</strong> <span id="timeRemaining">--:--</span></div>
+    <div><strong id="lbl-eta">ETA:</strong> <span id="eta">--:--</span></div>
+  </div>
+
+  <div id="infoPanel" style="
+    display: none;
+    position: absolute;
+    top: 70px;
+    right: 30px;
+    left: auto;
+    width: 300px;
+    z-index: 1000;
+    background: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+    overflow: hidden;
+    max-height: 90vh;
+    color: #333;
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    border: 1px solid #ccc;
+  ">
+    <div id="infoPanelHeader"
+         style="cursor: move; background-color: #ddd; color: #555; padding: 6px 10px; font-size: 12px; border-top-left-radius: 10px; border-top-right-radius: 10px;">
+      Drag to move
+    </div>
+    <div style="padding: 12px 16px 0 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 id="flight_summary_title" style="margin: 0; font-size: 16px; font-weight: 600; color: #333;">Flight Summary</h3>
+        <div>
+          <button id="importSimbriefBtn" onclick="importSimbriefToInfoPanel()"
+                  title="Import from SimBrief"
+                  style="background-color: #e0e0e0; color: black; border: none; padding: 4px 8px; font-size: 13px; border-radius: 6px; cursor: pointer;">
+            ⬇️
+          </button>
+          <button id="closeInfoPanelBtn" onclick="toggleInfoPanel()"
+                  title="Close"
+                  style="background-color: #e0e0e0; color: black; border: none; padding: 4px 8px; font-size: 13px; border-radius: 6px; cursor: pointer; margin-left: 6px;">
+            ❌
+          </button>
+        </div>
+      </div>
+      <div id="infoPanelContent" style="padding: 0 5px 5px 5px;"></div>
+    </div>
+  </div>
+
+  <div id="routeModal">
+    <div id="routeModalContent">
+      <div id="routeModalTabs">
+        <button id="manualTabBtn"   onclick="showTab('manualTab')"><span id="lbl-manualTab">Manual Route</span></button>
+        <button id="simbriefTabBtn" onclick="showTab('simbriefTab')"><span id="lbl-simbriefTab">SimBrief Plan</span></button>
+        <button id="msfsTabBtn"      onclick="showTab('msfsTab')"><span id="lbl-msfsTab">MSFS Flight Plan</span></button>
+      </div>
+
+      <div id="manualTab">
+        <p style="font-size:14px;color:#444;margin-bottom:12px;">
+          Enter origin and destination ICAO codes to draw a great-circle route.
+        </p>
+        <input type="text" id="originInput" placeholder="Origin ICAO (e.g. KJFK)">
+        <input type="text" id="destInput"   placeholder="Destination ICAO (e.g. RJTT)">
+
+        <div style="margin-bottom:12px;font-size:14px;">
+          <strong id="lbl-routeModalLabelType-manual">Label Type:</strong><br>
+          <label><input type="radio" name="labelTypeManual" value="city"  checked> <span id="lbl-routeModalCity-manual">City (default)</span></label><br>
+          <label><input type="radio" name="labelTypeManual" value="icao">  <span id="lbl-routeModalICAO-manual">ICAO</span></label><br>
+          <label><input type="radio" name="labelTypeManual" value="iata">  <span id="lbl-routeModalIATA-manual">IATA</span></label><br>
+          <label><input type="radio" name="labelTypeManual" value="name">  <span id="lbl-routeModalName-manual">Airport Name</span></label>
+        </div>
+
+        <div style="text-align:right;">
+          <button style="background:#0040ff;color:white;" onclick="submitManualRoute()">Submit</button>
+          <button style="background:#888;color:white;"    onclick="hideRouteModal()">Cancel</button>
+        </div>
+      </div>
+
+      <div id="simbriefTab">
+        <p style="font-size:14px;color:#444;">
+          Loads your full SimBrief route with waypoints.<br>
+          SimBrief username must be set in Settings (⚙️).
+        </p>
+
+        <div style="margin-bottom:12px;font-size:14px;">
+          <strong id="lbl-routeModalLabelType-simbrief">Label Type:</strong><br>
+          <label><input type="radio" name="labelTypeSimbrief" value="city"  checked> <span id="lbl-routeModalCity-simbrief">City (default)</span></label><br>
+          <label><input type="radio" name="labelTypeSimbrief" value="icao">  <span id="lbl-routeModalICAO-simbrief">ICAO</span></label><br>
+          <label><input type="radio" name="labelTypeSimbrief" value="iata">  <span id="lbl-routeModalIATA-simbrief">IATA</span></label><br>
+          <label><input type="radio" name="labelTypeSimbrief" value="name">  <span id="lbl-routeModalName-simbrief">Airport Name</span></label>
+        </div>
+
+        <div style="text-align:center;">
+          <button style="background:#333;color:white;" onclick="GlobeMap.loadSimBrief(); hideRouteModal()">Load SimBrief</button>
+          <button style="background:#888;color:white;margin-left:6px;" onclick="hideRouteModal()">Cancel</button>
+        </div>
+      </div>
+
+      <div id="msfsTab">
+        <p style="font-size:14px;color:#444;margin-bottom:12px;">
+          <span id="lbl-msfsModalDesc">Loads your active MSFS custom flight plan directly from the sim. Set your flight plan in-game first, then click Load below.</span>
+        </p>
+
+        <div style="margin-bottom:12px;font-size:14px;">
+          <strong id="lbl-msfsVersionTitle">MSFS Version &amp; Platform:</strong><br>
+          <label style="display:block;margin-top:6px;"><input type="radio" name="msfsVariant" value="steam_2020" checked> <span id="lbl-msfsVariantSteam2020">MSFS 2020 — Steam</span></label>
+          <label style="display:block;margin-top:4px;"><input type="radio" name="msfsVariant" value="store_2020"> <span id="lbl-msfsVariantStore2020">MSFS 2020 — Microsoft Store</span></label>
+          <label style="display:block;margin-top:4px;opacity:0.45;cursor:not-allowed;"><input type="radio" name="msfsVariant" value="steam_2024" disabled> <span id="lbl-msfsVariantSteam2024">MSFS 2024 — Steam</span></label>
+          <label style="display:block;margin-top:4px;opacity:0.45;cursor:not-allowed;"><input type="radio" name="msfsVariant" value="store_2024" disabled> <span id="lbl-msfsVariantStore2024">MSFS 2024 — Microsoft Store</span></label>
+
+                <p id="lbl-msfs2024Unsupported" style="font-size:12px;color:#888;margin:0 0 12px 0;">⚠️ MSFS 2024 flight plan imports are not currently supported. Changes to the 2024 PLN file format removed waypoint coordinates, making import not feasible.</p>
+
+          <label id="msfsCustomLabel" style="display:block;margin-top:4px;opacity:0.45;cursor:not-allowed;" title="Set msfs_custom_pln_path in advanced_config.txt to enable this option">
+            <input type="radio" name="msfsVariant" value="custom" id="msfsCustomRadio" disabled> <span id="lbl-msfsVariantCustom">Custom Directory</span>
+          </label>
+          </div>
+
+
+
+        <div style="margin-bottom:12px;font-size:14px;">
+          <strong id="lbl-routeModalLabelType-msfs">Label Type:</strong><br>
+          <label><input type="radio" name="labelTypeMSFS" value="city"  checked> <span id="lbl-routeModalCity-msfs">City (default)</span></label><br>
+          <label><input type="radio" name="labelTypeMSFS" value="icao">  <span id="lbl-routeModalICAO-msfs">ICAO</span></label><br>
+          <label><input type="radio" name="labelTypeMSFS" value="iata">  <span id="lbl-routeModalIATA-msfs">IATA</span></label><br>
+          <label><input type="radio" name="labelTypeMSFS" value="name">  <span id="lbl-routeModalName-msfs">Airport Name</span></label>
+        </div>
+
+        <div style="text-align:center;">
+          <button id="lbl-msfsLoadBtn" style="background:#1a6b1a;color:white;" onclick="GlobeMap.loadMSFSPlan(); hideRouteModal()">Load MSFS Plan</button>
+          <button style="background:#888;color:white;margin-left:6px;" onclick="hideRouteModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <div id="ionFeatureModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:10px;padding:28px;max-width:460px;width:90%;font-family:sans-serif;box-shadow:0 8px 32px rgba(0,0,0,0.4);">
+      <h3 id="ionPopupTitle" style="margin:0 0 12px;font-size:18px;color:#222;">Personal Cesium Ion Token Required</h3>
+      <p id="ionPopupBody" style="margin:0 0 16px;font-size:14px;color:#444;line-height:1.5;"></p>
+      <ol style="font-size:13px;color:#333;line-height:1.8;margin:0 0 20px;padding-left:20px;">
+        <li id="ionStep1">Go to <a href="https://ion.cesium.com" target="_blank" style="color:#0066cc;">ion.cesium.com</a> and sign up for a free account</li>
+        <li id="ionStep2">Copy your default access token from the dashboard</li>
+        <li id="ionStep3">Add <code style="background:#f4f4f4;padding:2px 5px;border-radius:3px;">cesium_token = YOUR_TOKEN_HERE</code> to your <code style="background:#f4f4f4;padding:2px 5px;border-radius:3px;">advanced_config.txt</code> file</li>
+        <li id="ionStep4">Restart the app</li>
+      </ol>
+      <div style="text-align:right;">
+        <button id="ionPopupClose" onclick="document.getElementById('ionFeatureModal').style.display='none'" style="background:#333;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:14px;cursor:pointer;">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/translations.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/flight_info.js') }}"></script>
+  <script>
+    // Expose token data globally so JS files can read it
+    window._hasPersonalToken = window._cesiumTokenData.hasPersonalToken;
+    window._allow3DMode      = window._cesiumTokenData.allow3DMode;
+
+    // Show Ion feature popup with translated content
+    function showIonFeaturePopup(featureName) {
+      const lang = localStorage.getItem("selectedLanguage") || "en";
+      const t    = (typeof translations !== "undefined" && translations[lang]) || {};
+      const modal = document.getElementById("ionFeatureModal");
+      document.getElementById("ionPopupTitle").textContent = t.ionPopupTitle || "Personal Cesium Ion Token Required";
+      document.getElementById("ionPopupBody").textContent  = (t.ionPopupBody || "The {feature} feature requires a free personal Cesium Ion token. Follow the steps below to unlock it:").replace("{feature}", featureName);
+      document.getElementById("ionStep1").innerHTML = (t.ionStep1 || "Go to {link} and sign up for a free account").replace("{link}", '<a href="https://ion.cesium.com" target="_blank" style="color:#0066cc;">ion.cesium.com</a>');
+      document.getElementById("ionStep3").innerHTML = (t.ionStep3 || "Paste the access token next to {code} in your {file} file").replace("{code}", '<code style="background:#f4f4f4;padding:2px 5px;border-radius:3px;">cesium_token =</code>').replace("{file}", '<code style="background:#f4f4f4;padding:2px 5px;border-radius:3px;">advanced_config.txt</code>');
+      document.getElementById("ionStep2").textContent = t.ionStep2   || "Copy your default access token from the dashboard";
+      document.getElementById("ionStep4").textContent = t.ionStep4   || "Restart the app";
+      document.getElementById("ionPopupClose").textContent = t.ionPopupClose || "Close";
+      modal.style.display = "flex";
+    }
+
+    // ===== Custom Imagery Picker =====
+    // Hover on desktop, click on touch. Closes when clicking outside.
+    (function() {
+      const container = document.getElementById("imageryPickerContainer");
+      const menu      = document.getElementById("imageryPickerMenu");
+      const btn       = document.getElementById("imageryPickerBtn");
+      let isTouch     = false;
+
+      // Detect touch device
+      window.addEventListener("touchstart", () => { isTouch = true; }, { once: true });
+
+      // Desktop: hover with small hide delay so cursor can reach the menu
+      let _imageryHideTimer = null;
+      container.addEventListener("mouseenter", () => {
+        if (isTouch) return;
+        clearTimeout(_imageryHideTimer);
+        menu.style.display = "block";
+      });
+      container.addEventListener("mouseleave", () => {
+        if (isTouch) return;
+        _imageryHideTimer = setTimeout(() => { menu.style.display = "none"; }, 700);
+      });
+
+      // Touch: toggle on tap
+      btn.addEventListener("click", e => {
+        if (!isTouch) return;
+        e.stopPropagation();
+        menu.style.display = menu.style.display === "block" ? "none" : "block";
+      });
+
+      // Close on outside click
+      document.addEventListener("click", e => {
+        if (!container.contains(e.target)) menu.style.display = "none";
+      });
+
+      // Wire up Bing options — show popup if no token, don't change selection
+      ["imageryOptBing", "imageryOptBingLabels"].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (!window._hasPersonalToken) {
+          el.classList.add("disabled");
+          el.addEventListener("click", e => {
+            e.preventDefault();
+            const lang = localStorage.getItem("selectedLanguage") || "en";
+            const t    = (typeof translations !== "undefined" && translations[lang]) || {};
+            showIonFeaturePopup(t.ionFeatureBingImagery || "Bing Maps Imagery");
+          });
+        }
+      });
+    })();
+
+    // Called by globe JS files once viewer is ready
+    function initImageryPicker(viewer, hasToken) {
+      const saved = localStorage.getItem("globeImageryStyle") || "arcgis_labels";
+      // If saved is a Bing option but no token, fall back to arcgis_labels
+      const isBingSaved = saved === "bing" || saved === "bing_labels";
+      const initial = (!hasToken && isBingSaved) ? "arcgis_labels" : saved;
+      _applyImagery(viewer, initial, hasToken);
+
+      // Reflect initial selection in radio buttons
+      const radio = document.querySelector(`input[name="globeImagery"][value="${initial}"]`);
+      if (radio) radio.checked = true;
+    }
+
+    // Global so globe JS can call it too when language changes
+    function updateImageryPickerTranslations() {
+      const lang = localStorage.getItem("selectedLanguage") || "en";
+      const t    = (typeof translations !== "undefined" && translations[lang]) || {};
+      const setText = (id, val) => { const el = document.getElementById(id); if (el && val) el.textContent = val; };
+      setText("lbl-imageryPickerTitle",  t.imageryPickerTitle   || "Map Imagery");
+      setText("lbl-imageryOSM",          t.imageryOSM           || "OpenStreetMap");
+      setText("lbl-imageryArcGIS",       t.imageryArcGIS        || "ArcGIS Satellite");
+      setText("lbl-imageryArcGISLabels", t.imageryArcGISLabels  || "ArcGIS Satellite + Labels");
+      // setText("lbl-imageryBing",         t.imageryBing          || "Bing Maps Aerial");
+      // setText("lbl-imageryBingLabels",   t.imageryBingLabels    || "Bing Maps Aerial + Labels");
+    }
+
+    window._applyImagery = function(viewer, value, hasToken) {
+      if (!viewer) return;
+      const layers = viewer.imageryLayers;
+      layers.removeAll();
+
+      // Helper — saves value to localStorage and updates radio
+      function _saveAndSelect(v) {
+        const isBing = v === "bing" || v === "bing_labels";
+        if (!isBing || hasToken) localStorage.setItem("globeImageryStyle", v);
+        const radio = document.querySelector(`input[name="globeImagery"][value="${v}"]`);
+        if (radio) radio.checked = true;
+      }
+
+      if (value === "osm") {
+        layers.addImageryProvider(new Cesium.OpenStreetMapImageryProvider({
+          url: "https://tile.openstreetmap.org/"
+        }));
+        _saveAndSelect("osm");
+        viewer.scene.requestRender();
+
+      } else if (value === "arcgis") {
+        Cesium.ArcGisMapServerImageryProvider.fromUrl(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"
+        ).then(provider => {
+          layers.removeAll();
+          layers.addImageryProvider(provider);
+          _saveAndSelect("arcgis");
+          viewer.scene.requestRender();
+        }).catch(() => {
+          layers.removeAll();
+          layers.addImageryProvider(new Cesium.OpenStreetMapImageryProvider({ url: "https://tile.openstreetmap.org/" }));
+          _saveAndSelect("osm");
+          viewer.scene.requestRender();
+        });
+
+      } else if (value === "arcgis_labels") {
+        Cesium.ArcGisMapServerImageryProvider.fromUrl(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"
+        ).then(provider => {
+          layers.removeAll();
+          layers.addImageryProvider(provider);
+          layers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+            url: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+            maximumLevel: 19
+          }));
+          _saveAndSelect("arcgis_labels");
+          viewer.scene.requestRender();
+        }).catch(() => {
+          layers.removeAll();
+          layers.addImageryProvider(new Cesium.OpenStreetMapImageryProvider({ url: "https://tile.openstreetmap.org/" }));
+          _saveAndSelect("osm");
+          viewer.scene.requestRender();
+        });
+
+      } else if ((value === "bing" || value === "bing_labels") && hasToken) {
+        const assetId = value === "bing_labels" ? 3 : 2;
+        Cesium.IonImageryProvider.fromAssetId(assetId).then(provider => {
+          layers.removeAll();
+          layers.addImageryProvider(provider);
+          _saveAndSelect(value);
+          viewer.scene.requestRender();
+        });
+
+      } else {
+        // Unexpected value or Bing without token — fall back to arcgis_labels
+        Cesium.ArcGisMapServerImageryProvider.fromUrl(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"
+        ).then(provider => {
+          layers.removeAll();
+          layers.addImageryProvider(provider);
+          layers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+            url: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+            maximumLevel: 19
+          }));
+          _saveAndSelect("arcgis_labels");
+          viewer.scene.requestRender();
+        }).catch(() => {
+          layers.addImageryProvider(new Cesium.OpenStreetMapImageryProvider({ url: "https://tile.openstreetmap.org/" }));
+          _saveAndSelect("osm");
+          viewer.scene.requestRender();
+        });
+      }
+    };
+
+    // Called by radio onchange handlers in the picker — globe JS exposes viewer as window._globeViewer
+    window.setGlobeImagery = function(value) {
+      const viewer   = window._globeViewer;
+      const hasToken = window._hasPersonalToken || false;
+      if (!viewer) return;
+      window._applyImagery(viewer, value, hasToken);
+    };
+
+    // Load the correct globe script based on ?mode= URL parameter
+    // and set the Cesium Ion token before the script executes
+    (function() {
+      const mode = new URLSearchParams(window.location.search).get('mode');
+      if (window.Cesium) Cesium.Ion.defaultAccessToken = window._cesiumTokenData.token;
+      const script = document.createElement('script');
+      script.src = mode === 'classic'
+        ? "{{ url_for('static', filename='js/globe_classic.js') }}"
+        : "{{ url_for('static', filename='js/globe.js') }}";
+      script.onload = function() {
+        // Ensure token is set after script loads in case Cesium was loaded by the script
+        if (window.Cesium) Cesium.Ion.defaultAccessToken = window._cesiumTokenData.token;
+      };
+      document.head.appendChild(script);
+    })();
+  </script>
+
+  <script>
+    // ===== Route Modal =====
+    function showRouteModal() {
+      document.getElementById("routeModal").style.display = "flex";
+      showTab('manualTab');
+    }
+    function hideRouteModal() {
+      document.getElementById("routeModal").style.display = "none";
+    }
+    function showTab(tabName) {
+      const manual     = document.getElementById("manualTab");
+      const simbrief   = document.getElementById("simbriefTab");
+      const msfs       = document.getElementById("msfsTab");
+      const manualBtn  = document.getElementById("manualTabBtn");
+      const simbriefBtn= document.getElementById("simbriefTabBtn");
+      const msfsBtn    = document.getElementById("msfsTabBtn");
+
+      manual.style.display   = tabName === "manualTab"   ? "block" : "none";
+      simbrief.style.display = tabName === "simbriefTab" ? "block" : "none";
+      msfs.style.display     = tabName === "msfsTab"     ? "block" : "none";
+
+      manualBtn.style.background   = tabName === "manualTab"   ? "#f0f0f0" : "#e0e0e0";
+      simbriefBtn.style.background = tabName === "simbriefTab" ? "#f0f0f0" : "#e0e0e0";
+      msfsBtn.style.background     = tabName === "msfsTab"     ? "#f0f0f0" : "#e0e0e0";
+
+      if (tabName === "msfsTab") {
+        const saved = localStorage.getItem("msfsVariant") || "steam_2020";
+        const radio = document.querySelector('input[name="msfsVariant"][value="' + saved + '"]');
+        if (radio) radio.checked = true;
+      }
+    }
+
+    function submitManualRoute() {
+      const origin = document.getElementById("originInput").value.trim().toUpperCase();
+      const dest   = document.getElementById("destInput").value.trim().toUpperCase();
+      if (!origin || !dest) { toast("Please enter both ICAO codes."); return; }
+
+      // Sync label type from radio to the select used by globe.js
+      const radio = document.querySelector('input[name="labelTypeManual"]:checked');
+      const sel   = document.getElementById("labelTypeSelect");
+      if (radio && sel) sel.value = radio.value;
+
+      GlobeMap.submitRoute(origin, dest);
+      hideRouteModal();
+    }
+
+    function toast(message) {
+      const t = document.getElementById("toast");
+      t.textContent = message;
+      t.style.display = "block";
+      setTimeout(() => { t.style.opacity = 1; }, 10);
+      setTimeout(() => {
+        t.style.opacity = 0;
+        setTimeout(() => { t.style.display = "none"; }, 400);
+      }, 2500);
+    }
+  </script>
+  <!-- === View-switch warning modal === -->
+  <div id="mapSwitchModal" style="
+    display:none; position:fixed; top:0; left:0; width:100vw; height:100vh;
+    background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:99999;">
+    <div style="background:#fff; border-radius:10px; padding:24px; width:380px; max-width:92vw;
+      font-family:sans-serif; box-shadow:0 6px 24px rgba(0,0,0,0.4);">
+      <h3 id="switchWarningTitle" style="margin:0 0 12px; font-size:16px; color:#c0392b;">⚠️ Switching Views</h3>
+      <p id="switchWarningBody" style="margin:0 0 16px; font-size:14px; color:#333; line-height:1.5;">
+        Switching to the 2D map will <strong>reset everything</strong> — your current route,
+        flight trail, and all progress will be lost. You will need to reload your route in the new view.
+      </p>
+      <p id="performanceWarning" style="margin:0 0 16px; font-size:14px; color:#333; line-height:1.5;">
+        If you are switching to the 3D globe, please note that it uses more system resources than the 2D map. You may see lagging or slower responses. Additionally, using the globe map may take system resources away from your PC therefore impacting MSFS performance, and on mobile devices the battery may discharge faster than normal.
+      </p>
+      <label id="switchWarningCheckLabel" style="display:flex; align-items:center; gap:8px; font-size:13px; color:#555; margin-bottom:18px; cursor:pointer;">
+        <input type="checkbox" id="mapSwitchDontShow"> <span id="switchWarningDontShowText">Don't show this warning again</span>
+      </label>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button id="switchWarningCancelBtn" onclick="closeSwitchModal()" style="padding:8px 16px; border:none; border-radius:6px; background:#ccc; color:#333; font-size:14px; cursor:pointer;">Cancel</button>
+        <button id="mapSwitchConfirmBtn" style="padding:8px 16px; border:none; border-radius:6px; background:#c0392b; color:#fff; font-size:14px; cursor:pointer;">Switch View</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function confirmMapSwitch(url) {
+      if (localStorage.getItem('skipMapSwitchWarning') === 'true') { window.location.href = url; return; }
+      document.getElementById('mapSwitchModal').style.display = 'flex';
+      document.getElementById('mapSwitchConfirmBtn').onclick = () => {
+        if (document.getElementById('mapSwitchDontShow').checked)
+          localStorage.setItem('skipMapSwitchWarning', 'true');
+        window.location.href = url;
+      };
+    }
+    function closeSwitchModal() {
+      document.getElementById('mapSwitchModal').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
+

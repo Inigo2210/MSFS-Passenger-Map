@@ -1,0 +1,96 @@
+# ----------------------------------------------------------
+#  MSFS Passenger Map - Advanced Configuration File
+# ----------------------------------------------------------
+#
+#  This file is OPTIONAL and read-only by the program.
+#  Edit it manually to override certain settings globally.
+#  Changes apply to every launch, device, and browser session.
+#  Leave any setting blank to use the app default.
+#
+# ----------------------------------------------------------
+
+# Config settings — edit values here:
+# ----------------------------------------------------------
+
+simbrief_username =
+auto_load_simbrief =
+cesium_token =
+msfs_custom_pln_path =
+disable_prompts =
+disableRoutePopup =
+custom_zoom_levels =
+port = 5000
+
+# ----------------------------------------------------------
+# Detailed explanation for each setting is below.
+# ----------------------------------------------------------
+
+
+# SIMBRIEF USERNAME
+# Your SimBrief username. When set, this overrides whatever
+# username is stored in the browser and pre-fills it in the app.
+# Leave blank to require manual entry in-app.
+
+
+# AUTO LOAD SIMBRIEF (yes/no)
+# Automatically import and load your SimBrief flight plan on every startup.
+# Set to "yes" to enable. Default is no.
+
+
+
+# CESIUM ION TOKEN (Globe View)
+# Personal Cesium Ion access token. Required to unlock 3D Flight Path & Terrain mode
+#
+# To get your free token:
+#   1. Go to https://ion.cesium.com and create a free personal account
+#   2. Your default access token is shown on the dashboard
+#   3. Paste the entire token on the same line as the = sign
+#      (do not split it across multiple lines)
+
+
+
+# MSFS CUSTOM FLIGHT PLAN DIRECTORY
+# A custom folder path to load MSFS flight plan (.pln) files from.
+# ONLY SUPPORTS FS 2020 .PLN FILES. FS 2024 FILES NOT SUPPORTED
+# When set, a "Custom Directory" option appears in the MSFS Flight
+# Plan import tab. The most recently modified .pln file in the folder will be loaded.
+# Use this if you store flight plans in a custom folder
+# Supports environment variables e.g. %USERPROFILE%\FlightPlans
+
+
+
+# DISABLE INPUT PROMPTS (yes/no)
+# Suppress in-app text input prompts (except route/plan entry).
+# Set to "yes" only if you are having issues with input dialogs.
+# Default is no.
+
+
+
+# DISABLE ROUTE POPUP (yes/no)
+# Disable the route setup popup that appears automatically when
+# the app loads. Set to "yes" to skip it. Default is no.
+
+
+
+# AUTO ZOOM LEVELS (2D Map)
+# Override the zoom levels used by the Auto Cycle Zoom feature.
+# Controls how far in/out the map zooms during each cycle step.
+#
+# Enter comma-separated integers (no spaces), values between 2-18.
+# Smaller = zoomed out (world view). Larger = zoomed in (airport view).
+# A route must be loaded for custom levels to take effect.
+# Leave blank to use the app's built-in automatic zoom logic.
+#
+# Example: custom_zoom_levels = 4,7,10,14,17
+
+
+
+# SERVER PORT
+# Port number for the app's local web server.
+# Valid range: 1024-65535. Default is 5000.
+# Only change this if port 5000 is already in use on your system
+
+
+
+
+
