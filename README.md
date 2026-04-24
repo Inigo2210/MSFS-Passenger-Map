@@ -1,4 +1,4 @@
-# MSFS Passenger Map V2.0
+# MSFS Passenger Map v2.0
 
 A real-time moving map for Microsoft Flight Simulator (MSFS 2020/2024), designed to mimic the passenger information display found on airliners. View your live flight on a 2D map or 3D globe - perfect for a tablet, secondary monitor, or seatback screen experience.
 
@@ -33,7 +33,6 @@ A real-time moving map for Microsoft Flight Simulator (MSFS 2020/2024), designed
 
 - Microsoft Flight Simulator 2020 or 2024 (running on the same PC)
 - Internet browser (Chrome, Firefox, Edge, Safari, etc.)
-- SimConnect - installed automatically, no separate download needed
 - [Optional] SimBrief account - for SimBrief route import and flight info panel features
 - [Optional] Free [Cesium Ion](https://ion.cesium.com/) account and token - for 3D flight path and terrain in globe view
 
