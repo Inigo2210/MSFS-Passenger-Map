@@ -8,6 +8,8 @@ A real-time moving map for Microsoft Flight Simulator (MSFS 2020/2024), designed
 
 ---
 
+<img width="500" alt="screenshot_2" src="https://github.com/user-attachments/assets/83ec03a7-0e55-43c5-937a-14821b85dcd2" /> <img width="480" alt="IMG_4682" src="https://github.com/user-attachments/assets/bdb4b971-616c-4e00-9f35-60451d1eb374" />
+
 ## Features
 
 - **Live aircraft tracking** on a 2D map and 3D globe
