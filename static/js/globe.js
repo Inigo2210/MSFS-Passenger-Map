@@ -29,8 +29,12 @@ viewer.scene.maximumRenderTimeChange = Infinity;
 viewer.scene.requestRenderMode = true;
 viewer.useDefaultRenderLoop = true;
 viewer.targetFrameRate = 30;
-
 window._globeViewer = viewer;
+viewer.scene.globe.preloadAncestors = false
+viewer.scene.skyAtmosphere.show = false;
+viewer.scene.globe.showGroundAtmosphere = false;
+viewer.scene.fog.enabled = false;
+//viewer.scene.debugShowFramesPerSecond = true
 
 
 if (typeof initImageryPicker === "function") {
@@ -552,6 +556,7 @@ function _flushTrailToStatic() {
 
 function pushTrailPosition(lat, lon, alt) {
   if (Math.abs(lat) < 0.01 && Math.abs(lon) < 0.01) return;
+  if (isOnGround(latestData)) return;
 
   const minDistNM = (alt || 0) > 25000 ? 0.27 : 0.017;
   if (_lastTrailLat !== null &&
@@ -564,7 +569,7 @@ function pushTrailPosition(lat, lon, alt) {
   if (_trailPositionsArray.length >= TRAIL_LIVE_MAX) _flushTrailToStatic();
 
   _trailPositionsArray.push(Cesium.Cartesian3.fromDegrees(
-    lon, lat, isOnGround(latestData) ? 5 : simAltToMetres(alt)
+    lon, lat, simAltToMetres(alt)
   ));
   ensureTrailEntity();
 }
@@ -1028,7 +1033,8 @@ async function loadSimBrief(silent = false) {
 
     clearAll();
 
-    const labelType = document.getElementById("labelTypeSelect")?.value || "city";
+    const labelRadio = document.querySelector('input[name="labelTypeSimbrief"]:checked');
+    const labelType = labelRadio?.value || document.getElementById("labelTypeSelect")?.value || "city";
 
     currentRoute = {
       origin:      { city: originData.city, name: originData.name, iata: originData.iata, icao: originData.icao, lat: originData.lat, lon: originData.lon, tz: originData.tz, elevation: originData.elevation },
@@ -1157,6 +1163,18 @@ function changeLanguage(lang) {
   setTitle("setRouteBtn",    t.setRouteTooltip);
   setText("trimWaypointBtn", t.trimWaypoint);
   setTitle("trimWaypointBtn",t.trimTooltip);
+
+  setText("lbl-betaNoticeTitle",        t.betaNoticeTitle       || "3D Flight Path & Terrain is a beta Feature");
+  setText("lbl-betaNoticeIntro",        t.betaNoticeIntro       || "This mode is in active development. You may encounter the following known issues:");
+  setText("lbl-betaIssue1",            t.betaIssue1            || "Flight trail may briefly render on top of aircraft, especially at low altitudes");
+  setText("lbl-betaIssue2",            t.betaIssue2            || "Route trail line does not draw when on ground");
+  setText("lbl-betaIssue3",            t.betaIssue3            || "Follow aircraft feature does not function well when map view is tilted");
+  setText("lbl-betaNoticeTiltTitle",    t.betaNoticeTiltTitle   || "How to tilt map to see 3D terrain & flight path:");
+  setText("lbl-betaNoticeTiltDesktop",  t.betaNoticeTiltDesktop || "🖱️ Ctrl + drag to tilt");
+  setText("lbl-betaNoticeTiltTouch",    t.betaNoticeTiltTouch   || "✌️ Two-finger drag to tilt on touch screens");
+  setText("lbl-betaNoticeReset",        t.betaNoticeReset       || "If you get lost or the view gets stuck, use the Reset Map View button in Settings to return to a full globe view.");
+  setText("lbl-betaNoticeDontShowText", t.betaNoticeDontShow    || "Don't show this again");
+  setText("lbl-betaNoticeOkBtn",        t.betaNoticeOkBtn       || "Got it");
 
 
   setTitle("settingsBtn",          t.settingsTooltip);
@@ -1762,6 +1780,7 @@ function initSettingsPanel() {
   const langSel2 = document.getElementById("languageSelect");
   if (langSel2) langSel2.value = savedLang;
   changeLanguage(savedLang);
+  showBetaNotice();
 
   initIconColorPicker();
 
@@ -1957,6 +1976,20 @@ function resetUIHideTimer() {
   uiHideTimer = setTimeout(() => {
     hideUIButtons();
   }, 15000);
+}
+
+function showBetaNotice() {
+  if (localStorage.getItem("skipBetaNotice") === "true") return;
+  const modal = document.getElementById("betaNoticeModal");
+  if (modal) modal.style.display = "flex";
+}
+
+function closeBetaNotice() {
+  if (document.getElementById("betaNoticeDontShow")?.checked) {
+    localStorage.setItem("skipBetaNotice", "true");
+  }
+  const modal = document.getElementById("betaNoticeModal");
+  if (modal) modal.style.display = "none";
 }
 
 ["mousemove", "keydown", "mousedown", "touchstart"].forEach(event => {

@@ -2858,6 +2858,7 @@ if (routePopupData.disable === "yes") {
     }
 
     updateUnitSystem();
+    updateUnitSystem();
   }
 
 const trailColorInput = document.getElementById("trailColorPicker");
@@ -2942,6 +2943,7 @@ if (
 ) {
   customZoomLevels = zoomData.levels;
   localStorage.setItem("customZoomLevels", JSON.stringify(customZoomLevels));
+  zoomLevels = customZoomLevels;
   console.log("[Advanced Config] Using custom zoom levels:", customZoomLevels);
 } else {
   localStorage.removeItem("customZoomLevels");

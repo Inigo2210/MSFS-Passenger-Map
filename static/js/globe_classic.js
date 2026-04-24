@@ -22,8 +22,13 @@ viewer.scene.maximumRenderTimeChange = Infinity;
 viewer.scene.requestRenderMode = true;
 viewer.useDefaultRenderLoop = true;
 viewer.targetFrameRate = 30;
-
 window._globeViewer = viewer;
+viewer.scene.globe.preloadAncestors = false
+viewer.scene.skyAtmosphere.show = false;
+viewer.scene.globe.showGroundAtmosphere = false;
+viewer.scene.fog.enabled = false;
+//viewer.scene.debugShowFramesPerSecond = true
+
 
 if (typeof initImageryPicker === "function") {
   initImageryPicker(viewer, window._hasPersonalToken || false);
@@ -471,11 +476,13 @@ function _initTrailStaticSlots() {
     })(), false);
     const entity = viewer.entities.add({
       polyline: {
-        positions: prop,
-        width: lineThickness,
-        clampToGround: true,
-        material: new Cesium.ColorMaterialProperty(trailColor),
-        show: false,
+        positions:                prop,
+        width:                    lineThickness,
+        clampToGround:            false,
+        material:                 new Cesium.ColorMaterialProperty(trailColor),
+        depthFailMaterial:        new Cesium.ColorMaterialProperty(trailColor),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        show:                     false,
       }
     });
     _trailStaticArrays.push({ posArray, prop, entity });
@@ -488,10 +495,12 @@ function ensureTrailEntity() {
   if (_trailPositionsArray.length < 2) return;
   trailEntity = viewer.entities.add({
     polyline: {
-      positions: trailPositionsProperty,
-      width: lineThickness,
-      clampToGround: true,
-      material: new Cesium.ColorMaterialProperty(trailColor),
+      positions:                trailPositionsProperty,
+      width:                    lineThickness,
+      clampToGround:            false,
+      material:                 new Cesium.ColorMaterialProperty(trailColor),
+      depthFailMaterial:        new Cesium.ColorMaterialProperty(trailColor),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
     }
   });
 }
@@ -557,7 +566,7 @@ function drawDashedToDestination(from, to) {
 
     const surfacePositions = gcPositions.map(p => {
       const c = Cesium.Cartographic.fromCartesian(p);
-      return Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, 0);
+      return Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, 5);
     });
 
     if (routeEntity && routeEntity.polyline && !isSimBriefRoute) {
@@ -573,12 +582,17 @@ function drawDashedToDestination(from, to) {
 
     routeEntity = viewer.entities.add({
       polyline: {
-        positions: routePositionsProperty,
-        width: lineThickness,
-        clampToGround: true,
-        material: new Cesium.ColorMaterialProperty(
+        positions:                routePositionsProperty,
+        width:                    lineThickness,
+        clampToGround:            false,
+        arcType:                  Cesium.ArcType.GEODESIC,
+        material:                 new Cesium.ColorMaterialProperty(
           cssToCesiumColor(routeColorCss).withAlpha(1.0)
         ),
+        depthFailMaterial:        new Cesium.ColorMaterialProperty(
+          cssToCesiumColor(routeColorCss).withAlpha(1.0)
+        ),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
       }
     });
   } catch (err) {
@@ -593,7 +607,7 @@ function drawSimBriefPoly(points) {
   _lastSimBriefKey = simKey;
 
   const positions = points.map(([la, lo]) =>
-    Cesium.Cartesian3.fromDegrees(lo, la, 0)
+    Cesium.Cartesian3.fromDegrees(lo, la, 5)
   );
 
   if (routeEntity && routeEntity.polyline && isSimBriefRoute) {
@@ -609,10 +623,13 @@ function drawSimBriefPoly(points) {
 
   routeEntity = viewer.entities.add({
     polyline: {
-      positions: routePositionsProperty,
-      width: lineThickness,
-      clampToGround: true,
-      material: new Cesium.ColorMaterialProperty(routeColor.withAlpha(1.0)),
+      positions:                routePositionsProperty,
+      width:                    lineThickness,
+      clampToGround:            false,
+      arcType:                  Cesium.ArcType.GEODESIC,
+      material:                 new Cesium.ColorMaterialProperty(routeColor.withAlpha(1.0)),
+      depthFailMaterial:        new Cesium.ColorMaterialProperty(routeColor.withAlpha(1.0)),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
     }
   });
 }
@@ -932,7 +949,8 @@ async function loadSimBrief(silent = false) {
 
     clearAll();
 
-    const labelType = document.getElementById("labelTypeSelect")?.value || "city";
+    const labelRadio = document.querySelector('input[name="labelTypeSimbrief"]:checked');
+    const labelType = labelRadio?.value || document.getElementById("labelTypeSelect")?.value || "city";
 
     currentRoute = {
       origin:      { city: originData.city, name: originData.name, iata: originData.iata, icao: originData.icao, lat: originData.lat, lon: originData.lon, tz: originData.tz },
@@ -965,15 +983,25 @@ function updateColorSettings() {
     localStorage.setItem("globeTrailColor", trailColorCss);
     trailColor = cssToCesiumColor(trailColorCss);
     const mat = new Cesium.ColorMaterialProperty(trailColor);
-    if (trailEntity) trailEntity.polyline.material = mat;
-    _trailStaticArrays.forEach(s => { if (s.entity) s.entity.polyline.material = mat; });
+    if (trailEntity) {
+      trailEntity.polyline.material = mat;
+      trailEntity.polyline.depthFailMaterial = mat;
+    }
+    _trailStaticArrays.forEach(s => {
+      if (s.entity) {
+        s.entity.polyline.material = mat;
+        s.entity.polyline.depthFailMaterial = mat;
+      }
+    });
   }
   if (routeInput) {
     routeColorCss = routeInput.value;
     localStorage.setItem("globeRouteLineColor", routeColorCss);
     routeColor = cssToCesiumColor(routeColorCss);
     if (routeEntity?.polyline) {
-      routeEntity.polyline.material = new Cesium.ColorMaterialProperty(routeColor.withAlpha(1.0));
+      const routeMat = new Cesium.ColorMaterialProperty(routeColor.withAlpha(1.0));
+      routeEntity.polyline.material = routeMat;
+      routeEntity.polyline.depthFailMaterial = routeMat;
     }
   }
 }
@@ -1524,15 +1552,25 @@ window.addEventListener('storage', e => {
     trailColorCss = e.newValue;
     trailColor = cssToCesiumColor(trailColorCss);
     const mat = new Cesium.ColorMaterialProperty(trailColor);
-    if (trailEntity) trailEntity.polyline.material = mat;
-    _trailStaticArrays.forEach(s => { if (s.entity) s.entity.polyline.material = mat; });
+    if (trailEntity) {
+      trailEntity.polyline.material = mat;
+      trailEntity.polyline.depthFailMaterial = mat;
+    }
+    _trailStaticArrays.forEach(s => {
+      if (s.entity) {
+        s.entity.polyline.material = mat;
+        s.entity.polyline.depthFailMaterial = mat;
+      }
+    });
     const p = document.getElementById("trailColorPicker"); if (p) p.value = trailColorCss;
   }
   if (e.key === 'globeRouteLineColor' && e.newValue) {
     routeColorCss = e.newValue;
     routeColor = cssToCesiumColor(routeColorCss);
     if (routeEntity?.polyline) {
-      routeEntity.polyline.material = new Cesium.ColorMaterialProperty(routeColor.withAlpha(1.0));
+      const routeMat = new Cesium.ColorMaterialProperty(routeColor.withAlpha(1.0));
+      routeEntity.polyline.material = routeMat;
+      routeEntity.polyline.depthFailMaterial = routeMat;
     }
     const p = document.getElementById("routeColorPicker"); if (p) p.value = routeColorCss;
   }

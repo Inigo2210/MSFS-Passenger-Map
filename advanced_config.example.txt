@@ -13,11 +13,11 @@
 # ----------------------------------------------------------
 
 simbrief_username =
-auto_load_simbrief =
+auto_load_simbrief = no
 cesium_token =
 msfs_custom_pln_path =
-disable_prompts =
-disableRoutePopup =
+disable_prompts = no
+disableRoutePopup = no
 custom_zoom_levels =
 port = 5000
 
